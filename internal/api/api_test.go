@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -50,7 +51,7 @@ func TestOpenAPIDocument(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
 	}
-	if !strings.Contains(response.Body.String(), "get-greeting") || !strings.Contains(response.Body.String(), "convert-nuclei-template") || !strings.Contains(response.Body.String(), "convert-nuclei-template-url") {
+	if !strings.Contains(response.Body.String(), "get-greeting") || !strings.Contains(response.Body.String(), "convert-nuclei-template") || !strings.Contains(response.Body.String(), "convert-nuclei-template-url") || !strings.Contains(response.Body.String(), "fetch-public-url") {
 		t.Fatalf("OpenAPI document does not include expected operations")
 	}
 }
@@ -111,5 +112,48 @@ func TestConvertURLOnlyEndpointRejectsBadURL(t *testing.T) {
 	}
 	if fetcher.url != "" {
 		t.Fatalf("invalid URL must not be fetched; got %q", fetcher.url)
+	}
+}
+
+func TestExternalFetchEndpoint(t *testing.T) {
+	const externalURL = "https://example.com/data.txt"
+	fetcher := &testFetcher{content: []byte("external response")}
+	handler := NewHandlerWithFetcher(fetcher)
+	request := httptest.NewRequest(http.MethodPost, "/external/fetch", strings.NewReader(`{"url":"`+externalURL+`"}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if fetcher.url != externalURL || !strings.Contains(response.Body.String(), "external response") || !strings.Contains(response.Body.String(), `"is_base64_encoded":false`) {
+		t.Fatalf("unexpected external fetch response: %s; fetched URL: %s", response.Body.String(), fetcher.url)
+	}
+}
+
+func TestExternalFetchEndpointEncodesBinaryResponse(t *testing.T) {
+	fetcher := &testFetcher{content: []byte{0xff, 0xfe, 0xfd}}
+	handler := NewHandlerWithFetcher(fetcher)
+	request := httptest.NewRequest(http.MethodPost, "/external/fetch", strings.NewReader(`{"url":"https://example.com/binary"}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	want := base64.StdEncoding.EncodeToString([]byte{0xff, 0xfe, 0xfd})
+	if !strings.Contains(response.Body.String(), want) || !strings.Contains(response.Body.String(), `"is_base64_encoded":true`) {
+		t.Fatalf("binary response not base64 encoded: %s", response.Body.String())
+	}
+}
+
+func TestExternalFetchEndpointRejectsInvalidURLBeforeFetch(t *testing.T) {
+	handler := NewHandler()
+	request := httptest.NewRequest(http.MethodPost, "/external/fetch", strings.NewReader(`{"url":"http://127.0.0.1/private"}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want %d; body: %s", response.Code, http.StatusBadGateway, response.Body.String())
 	}
 }

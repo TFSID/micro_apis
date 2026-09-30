@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/http"
+	"unicode/utf8"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -47,6 +49,20 @@ type convertOutput struct {
 type convertURLInput struct {
 	Body struct {
 		URL string `json:"url" minLength:"1" maxLength:"2048" doc:"Public URL of the Nuclei YAML template"`
+	}
+}
+
+type externalFetchInput struct {
+	Body struct {
+		URL string `json:"url" minLength:"1" maxLength:"2048" doc:"Public HTTP(S) URL to fetch with an outbound GET request"`
+	}
+}
+
+type externalFetchOutput struct {
+	Body struct {
+		URL             string `json:"url" doc:"Fetched URL"`
+		Body            string `json:"body" doc:"Response body as UTF-8 text or base64 when binary"`
+		IsBase64Encoded bool   `json:"is_base64_encoded" doc:"Whether body is base64 encoded"`
 	}
 }
 
@@ -167,6 +183,32 @@ func NewHandlerWithFetcher(fetcher nucleicurl.Fetcher) http.Handler {
 		}
 		result.Warnings = append(result.Warnings, "Replace https://TARGET with the actual target base URL before running the generated commands.")
 		return &convertOutput{Body: result}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "fetch-public-url",
+		Method:      http.MethodPost,
+		Path:        "/external/fetch",
+		Summary:     "Fetch a public external URL",
+		Description: "Makes an outbound HTTP GET request to a public internet host and returns a bounded response body. Private, local, and reserved network addresses are blocked; redirects are not followed.",
+		Tags:        []string{"external"},
+	}, func(ctx context.Context, input *externalFetchInput) (*externalFetchOutput, error) {
+		if _, err := nucleicurl.IsValidHTTPURL(input.Body.URL); err != nil {
+			return nil, huma.Error400BadRequest("invalid url", err)
+		}
+		body, err := fetcher.Fetch(ctx, input.Body.URL)
+		if err != nil {
+			return nil, huma.NewError(http.StatusBadGateway, fmt.Sprintf("could not fetch URL: %v", err))
+		}
+		out := &externalFetchOutput{}
+		out.Body.URL = input.Body.URL
+		if utf8.Valid(body) {
+			out.Body.Body = string(body)
+		} else {
+			out.Body.Body = base64.StdEncoding.EncodeToString(body)
+			out.Body.IsBase64Encoded = true
+		}
+		return out, nil
 	})
 
 	return router

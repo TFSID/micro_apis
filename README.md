@@ -24,6 +24,12 @@ Server berjalan di port `8888` secara default; ubah dengan environment variable 
 
 Jalankan test dengan `go test ./...`.
 
+## External fetch
+
+Untuk mengambil konten dari domain publik di internet, gunakan `POST /external/fetch` dengan body `{"url":"https://example.com/data"}`. Endpoint melakukan HTTP GET dan mengembalikan body teks atau base64 untuk konten biner. Batas response 1 MiB; hanya port HTTP/HTTPS standar yang diizinkan, redirect tidak diikuti, dan alamat lokal/private/reserved diblokir. Endpoint ini bukan proxy umum untuk jaringan privat dan tidak menerima method/header arbitrer.
+
+Karena endpoint melakukan outbound fetch berdasarkan input pemanggil, pasang autentikasi dan rate limit sebelum dipublikasikan; pembatasan SSRF bukan pengganti kontrol akses.
+
 ## Konversi Nuclei ke cURL
 
 Untuk alur sederhana dengan URL template saja, gunakan `POST /convert/url` dengan body JSON berisi satu field `url`. Contoh memakai template yang diberikan:
