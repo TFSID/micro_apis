@@ -1,0 +1,15 @@
+# Go
+/bootstrap
+.build/
+*.exe
+*.test
+*.out
+
+# Serverless Framework
+.serverless/
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

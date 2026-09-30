@@ -1,0 +1,27 @@
+service: micro-api
+frameworkVersion: '4'
+
+provider:
+  name: aws
+  runtime: provided.al2023
+  architecture: arm64
+  region: ${opt:region, 'ap-southeast-1'}
+  stage: ${opt:stage, 'dev'}
+  memorySize: 128
+  timeout: 10
+  httpApi:
+    payload: '2.0'
+
+package:
+  artifact: .build/micro-api.zip
+
+functions:
+  api:
+    handler: bootstrap
+    events:
+      - httpApi:
+          method: '*'
+          path: /
+      - httpApi:
+          method: '*'
+          path: /{proxy+}
