@@ -205,6 +205,11 @@ func parseRawRequest(raw string) (parsedRequest, error) {
 	}
 	parsed := parsedRequest{method: requestLine[0], target: requestLine[1], headers: make(map[string]string)}
 	for _, line := range lines[1:] {
+		// YAML block scalars commonly leave a final newline after the headers.
+		// Ignore empty lines here; the body, when present, is split above.
+		if line == "" {
+			continue
+		}
 		if strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") {
 			return parsedRequest{}, errors.New("folded raw HTTP headers are unsupported")
 		}

@@ -64,6 +64,17 @@ http:
 	}
 }
 
+func TestConvertRawRequestAllowsTrailingNewlineAfterHeaders(t *testing.T) {
+	source := "id: trailing-newline\nhttp:\n  - raw:\n      - |\n        GET {{BaseURL}}/status HTTP/1.1\n        Host: example.com\n"
+	result, err := Convert(source, Options{BaseURL: "https://example.com"})
+	if err != nil {
+		t.Fatalf("Convert() error = %v", err)
+	}
+	if len(result.Commands) != 1 || result.Commands[0].URL != "https://example.com/status" {
+		t.Fatalf("unexpected conversion result: %#v", result)
+	}
+}
+
 func TestConvertRejectsMissingValuesAndUnsupportedPayloads(t *testing.T) {
 	_, err := Convert("id: demo\nhttp:\n  - path: ['{{BaseURL}}/{{missing}}']\n", Options{BaseURL: "https://example.com"})
 	if err == nil || !strings.Contains(err.Error(), "missing") {
