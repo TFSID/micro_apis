@@ -26,6 +26,16 @@ Jalankan test dengan `go test ./...`.
 
 ## Konversi Nuclei ke cURL
 
+Untuk alur sederhana dengan URL template saja, gunakan `POST /convert/url` dengan body JSON berisi satu field `url`. Contoh memakai template yang diberikan:
+
+```json
+{
+	"url": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/refs/heads/main/http/cves/2026/CVE-2026-1340.yaml"
+}
+```
+
+Endpoint menghasilkan command dengan target placeholder `https://TARGET`; ganti placeholder tersebut dengan target yang ingin diuji sebelum menjalankan command. URL pada input adalah lokasi file template, bukan target scan.
+
 `POST /convert` menerima tepat satu sumber template: YAML langsung (`template_yaml`), URL publik (`template_url`), path relatif di repo resmi (`template_path`), atau nama file root sederhana (`template_id`). Request path relatif memerlukan `base_url`; nilai placeholder konkret dapat diberikan melalui `variables`.
 
 Contoh:

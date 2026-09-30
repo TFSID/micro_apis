@@ -44,6 +44,12 @@ type convertOutput struct {
 	Body nucleicurl.Result
 }
 
+type convertURLInput struct {
+	Body struct {
+		URL string `json:"url" minLength:"1" maxLength:"2048" doc:"Public URL of the Nuclei YAML template"`
+	}
+}
+
 // NewHandler builds the HTTP handler used by both local development and Lambda.
 func NewHandler() http.Handler {
 	return NewHandlerWithFetcher(nucleicurl.NewPublicFetcher())
@@ -137,6 +143,29 @@ func NewHandlerWithFetcher(fetcher nucleicurl.Fetcher) http.Handler {
 		if err != nil {
 			return nil, huma.Error400BadRequest("template cannot be converted", err)
 		}
+		return &convertOutput{Body: result}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "convert-nuclei-template-url",
+		Method:      http.MethodPost,
+		Path:        "/convert/url",
+		Summary:     "Convert a Nuclei template from its URL",
+		Description: "Fetches one public Nuclei YAML URL and returns cURL commands. Replace the TARGET placeholder with the target host before running a command.",
+		Tags:        []string{"converter"},
+	}, func(ctx context.Context, input *convertURLInput) (*convertOutput, error) {
+		if _, err := nucleicurl.IsValidHTTPURL(input.Body.URL); err != nil {
+			return nil, huma.Error400BadRequest("invalid url", err)
+		}
+		templateYAML, err := fetcher.Fetch(ctx, input.Body.URL)
+		if err != nil {
+			return nil, huma.NewError(http.StatusBadGateway, fmt.Sprintf("could not fetch template: %v", err))
+		}
+		result, err := nucleicurl.Convert(string(templateYAML), nucleicurl.Options{BaseURL: "https://TARGET"})
+		if err != nil {
+			return nil, huma.Error400BadRequest("template cannot be converted", err)
+		}
+		result.Warnings = append(result.Warnings, "Replace https://TARGET with the actual target base URL before running the generated commands.")
 		return &convertOutput{Body: result}, nil
 	})
 
